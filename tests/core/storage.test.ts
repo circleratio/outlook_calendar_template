@@ -21,6 +21,17 @@ describe("serialize / deserialize", () => {
     expect(deserialize(JSON.parse(serialize([sample])))).toEqual({ templates: [sample] });
   });
 
+  it("loads templates saved before sensitivity was added", () => {
+    const { sensitivity: _omitted, ...legacy } = sample;
+    const raw = JSON.stringify({ version: 1, templates: [legacy] });
+    expect(deserialize(raw)).toEqual({ templates: [{ ...legacy, sensitivity: "unchanged" }] });
+  });
+
+  it("keeps a stored sensitivity", () => {
+    const stored = { ...sample, sensitivity: "private" as const };
+    expect(deserialize(serialize([stored]))).toEqual({ templates: [stored] });
+  });
+
   it("treats never-saved settings as empty without warning", () => {
     expect(deserialize(undefined)).toEqual({ templates: [] });
     expect(deserialize(null)).toEqual({ templates: [] });
@@ -32,6 +43,7 @@ describe("serialize / deserialize", () => {
     ["missing templates", JSON.stringify({ version: 1 })],
     ["invalid template", JSON.stringify({ version: 1, templates: [{ id: "x" }] })],
     ["non-object", 42],
+    ["unknown sensitivity", JSON.stringify({ version: 1, templates: [{ ...sample, sensitivity: "secret" }] })],
   ])("warns on %s", (_label, raw) => {
     const result = deserialize(raw);
     expect(result.templates).toEqual([]);

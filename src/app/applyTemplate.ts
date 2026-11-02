@@ -61,6 +61,10 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
   if (t.location !== "") {
     await attempt("場所", () => appt.setLocation(t.location));
   }
+  const sensitivity = t.sensitivity;
+  if (sensitivity !== "unchanged") {
+    await attempt("公開範囲", () => appt.setSensitivity(sensitivity));
+  }
   if (t.requiredAttendees.length > 0) {
     await attempt("必須出席者", async () => {
       const toAdd = mergeAttendees(await appt.getRequiredAttendees(), t.requiredAttendees);

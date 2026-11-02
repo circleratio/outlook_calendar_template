@@ -43,7 +43,15 @@ describe("validateTemplate", () => {
   });
 
   describe("content", () => {
-    const blank = { subject: "", body: "", location: "", requiredAttendees: [], optionalAttendees: [], durationMinutes: null };
+    const blank = {
+      subject: "",
+      body: "",
+      location: "",
+      requiredAttendees: [],
+      optionalAttendees: [],
+      durationMinutes: null,
+      sensitivity: "unchanged" as const,
+    };
 
     it("requires at least one field besides the name", () => {
       expect(fields(make(blank))).toEqual(["subject"]);
@@ -57,6 +65,8 @@ describe("validateTemplate", () => {
       ["requiredAttendees", { requiredAttendees: ["a@example.com"] }],
       ["optionalAttendees", { optionalAttendees: ["a@example.com"] }],
       ["durationMinutes", { durationMinutes: 60 }],
+      ["sensitivity normal", { sensitivity: "normal" }],
+      ["sensitivity private", { sensitivity: "private" }],
     ])("accepts only %s", (_name, overrides) => {
       expect(fields(make({ ...blank, ...overrides }))).toEqual([]);
     });

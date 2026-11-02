@@ -7,6 +7,7 @@ export interface AppointmentGateway {
   setSubject(s: string): Promise<void>;
   prependBodyHtml(html: string): Promise<void>;
   setLocation(s: string): Promise<void>;
+  setSensitivity(s: "normal" | "private"): Promise<void>;
   getRequiredAttendees(): Promise<string[]>;
   addRequiredAttendees(emails: string[]): Promise<void>;
   getOptionalAttendees(): Promise<string[]>;
@@ -45,6 +46,17 @@ export function createOfficeAppointmentGateway(): AppointmentGateway {
     prependBodyHtml: (html) =>
       promisify<void>((cb) => item.body.prependAsync(html, { coercionType: Office.CoercionType.Html }, cb)),
     setLocation: (s) => promisify<void>((cb) => item.location.setAsync(s, cb)),
+    setSensitivity: async (s) => {
+      // Checked at runtime so the manifest can keep its lower minimum requirement set.
+      if (!Office.context.requirements.isSetSupported("Mailbox", "1.14")) {
+        throw new Error("このバージョンの Outlook では設定できません");
+      }
+      const value =
+        s === "private"
+          ? Office.MailboxEnums.AppointmentSensitivityType.Private
+          : Office.MailboxEnums.AppointmentSensitivityType.Normal;
+      await promisify<void>((cb) => item.sensitivity.setAsync(value, cb));
+    },
     getRequiredAttendees: () => getEmails(item.requiredAttendees),
     addRequiredAttendees: (emails) => promisify<void>((cb) => item.requiredAttendees.addAsync(emails, cb)),
     getOptionalAttendees: () => getEmails(item.optionalAttendees),

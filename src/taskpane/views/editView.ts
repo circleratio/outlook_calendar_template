@@ -1,5 +1,11 @@
 import { parseEmailList } from "../../core/attendees";
-import { createEmptyTemplate, EventTemplate, MAX_NAME_LENGTH, validateTemplate } from "../../core/template";
+import {
+  createEmptyTemplate,
+  EventTemplate,
+  MAX_NAME_LENGTH,
+  TemplateSensitivity,
+  validateTemplate,
+} from "../../core/template";
 import type { AppContext } from "../context";
 import { h } from "../dom";
 
@@ -28,7 +34,15 @@ export function renderEditView(
       step: "1",
       value: base.durationMinutes === null ? "" : String(base.durationMinutes),
     }),
+    sensitivity: h(
+      "select",
+      { id: "f-sensitivity" },
+      h("option", { value: "unchanged" }, "変更しない"),
+      h("option", { value: "normal" }, "公開"),
+      h("option", { value: "private" }, "非公開"),
+    ),
   };
+  inputs.sensitivity.value = base.sensitivity;
   inputs.body.value = base.body;
   inputs.requiredAttendees.value = base.requiredAttendees.join("\n");
   inputs.optionalAttendees.value = base.optionalAttendees.join("\n");
@@ -58,6 +72,7 @@ export function renderEditView(
       optionalAttendees: parseEmailList(inputs.optionalAttendees.value),
       // Number("") is 0, so treat blank explicitly as "not set".
       durationMinutes: duration === "" ? null : Number(duration),
+      sensitivity: inputs.sensitivity.value as TemplateSensitivity,
     };
   };
 
@@ -100,6 +115,7 @@ export function renderEditView(
     field("requiredAttendees", "必須出席者", inputs.requiredAttendees, "メールアドレスをカンマ・セミコロン・改行で区切って入力"),
     field("optionalAttendees", "任意出席者", inputs.optionalAttendees, "メールアドレスをカンマ・セミコロン・改行で区切って入力"),
     field("durationMinutes", "会議時間（分）", inputs.durationMinutes, "空欄の場合は終了日時を変更しません"),
+    field("sensitivity", "公開範囲", inputs.sensitivity, "非公開にすると、他の人の予定表には件名や場所などの詳細が表示されません"),
     h(
       "div",
       { class: "actions" },

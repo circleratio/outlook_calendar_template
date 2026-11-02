@@ -11,6 +11,7 @@ class FakeAppointment implements AppointmentGateway {
   subject = "";
   body = "";
   location = "";
+  sensitivity = "normal";
   required: string[] = [];
   optional: string[] = [];
   failOn = new Set<string>();
@@ -44,6 +45,10 @@ class FakeAppointment implements AppointmentGateway {
   async setLocation(s: string) {
     this.guard("setLocation");
     this.location = s;
+  }
+  async setSensitivity(s: "normal" | "private") {
+    this.guard("setSensitivity");
+    this.sensitivity = s;
   }
   async getRequiredAttendees() {
     this.guard("getRequiredAttendees");
@@ -206,5 +211,31 @@ describe("applyTemplate", () => {
 
     expect(appt.required).toEqual(["Existing@example.com", "a@example.com"]);
     expect(appt.optional).toEqual(["b@example.com"]);
+  });
+
+  it("(12) sets the sensitivity only when the template specifies it", async () => {
+    const unchanged = new FakeAppointment();
+    unchanged.sensitivity = "private";
+    await applyTemplate(template({ sensitivity: "unchanged" }), unchanged);
+    expect(unchanged.calls).not.toContain("setSensitivity");
+    expect(unchanged.sensitivity).toBe("private");
+
+    const toPrivate = new FakeAppointment();
+    await applyTemplate(template({ sensitivity: "private" }), toPrivate);
+    expect(toPrivate.sensitivity).toBe("private");
+
+    const toNormal = new FakeAppointment();
+    toNormal.sensitivity = "private";
+    await applyTemplate(template({ sensitivity: "normal" }), toNormal);
+    expect(toNormal.sensitivity).toBe("normal");
+  });
+
+  it("(13) reports a sensitivity failure and applies the remaining fields", async () => {
+    const appt = new FakeAppointment();
+    appt.failOn = new Set(["setSensitivity"]);
+    const result = await applyTemplate(template({ sensitivity: "private" }), appt);
+
+    expect(result.failures).toEqual([{ field: "公開範囲", message: "setSensitivity failed" }]);
+    expect(appt.required).toEqual(["a@example.com"]);
   });
 });

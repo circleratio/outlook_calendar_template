@@ -1,5 +1,8 @@
 import { isValidEmail } from "./attendees";
 
+/** Event privacy applied by a template; "unchanged" keeps the value of the form. */
+export type TemplateSensitivity = "unchanged" | "normal" | "private";
+
 export interface EventTemplate {
   id: string;
   name: string;
@@ -10,6 +13,7 @@ export interface EventTemplate {
   optionalAttendees: string[];
   /** Meeting length in minutes; null keeps the end time of the form. */
   durationMinutes: number | null;
+  sensitivity: TemplateSensitivity;
 }
 
 export type ValidationError = { field: keyof EventTemplate; message: string };
@@ -27,6 +31,7 @@ export function createEmptyTemplate(): EventTemplate {
     requiredAttendees: [],
     optionalAttendees: [],
     durationMinutes: null,
+    sensitivity: "unchanged",
   };
 }
 
@@ -47,9 +52,10 @@ export function validateTemplate(t: EventTemplate, others: EventTemplate[]): Val
     [t.subject, t.body, t.location].some((s) => s.trim().length > 0) ||
     t.requiredAttendees.length > 0 ||
     t.optionalAttendees.length > 0 ||
-    t.durationMinutes !== null;
+    t.durationMinutes !== null ||
+    t.sensitivity !== "unchanged";
   if (!hasContent) {
-    errors.push({ field: "subject", message: "件名・本文・場所・出席者・会議時間のいずれかを入力してください" });
+    errors.push({ field: "subject", message: "件名・本文・場所・出席者・会議時間・公開範囲のいずれかを設定してください" });
   }
 
   for (const field of ["requiredAttendees", "optionalAttendees"] as const) {

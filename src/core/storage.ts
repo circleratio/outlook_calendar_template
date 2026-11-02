@@ -36,7 +36,10 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((s) => typeof s === "string");
 }
 
-function isTemplate(v: unknown): v is EventTemplate {
+/** Templates saved before `sensitivity` was added do not have the field. */
+type StoredTemplate = Omit<EventTemplate, "sensitivity"> & Partial<Pick<EventTemplate, "sensitivity">>;
+
+function isTemplate(v: unknown): v is StoredTemplate {
   if (typeof v !== "object" || v === null) return false;
   const t = v as Record<string, unknown>;
   return (
@@ -47,7 +50,8 @@ function isTemplate(v: unknown): v is EventTemplate {
     typeof t.location === "string" &&
     isStringArray(t.requiredAttendees) &&
     isStringArray(t.optionalAttendees) &&
-    (t.durationMinutes === null || typeof t.durationMinutes === "number")
+    (t.durationMinutes === null || typeof t.durationMinutes === "number") &&
+    (t.sensitivity === undefined || t.sensitivity === "unchanged" || t.sensitivity === "normal" || t.sensitivity === "private")
   );
 }
 
@@ -57,11 +61,12 @@ export function deserialize(raw: unknown): { templates: EventTemplate[]; warning
     return { templates: [] };
   }
   try {
-    const data = (typeof raw === "string" ? JSON.parse(raw) : raw) as Partial<StoredData>;
+    const data = (typeof raw === "string" ? JSON.parse(raw) : raw) as { version?: unknown; templates?: unknown };
     if (data.version !== SCHEMA_VERSION || !Array.isArray(data.templates) || !data.templates.every(isTemplate)) {
       return { templates: [], warning: LOAD_WARNING };
     }
-    return { templates: data.templates };
+    const templates: StoredTemplate[] = data.templates;
+    return { templates: templates.map((t) => ({ ...t, sensitivity: t.sensitivity ?? "unchanged" })) };
   } catch {
     return { templates: [], warning: LOAD_WARNING };
   }
