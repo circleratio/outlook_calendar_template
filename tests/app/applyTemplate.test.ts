@@ -192,4 +192,19 @@ describe("applyTemplate", () => {
     await applyTemplate(template({ requiredAttendees: ["c@example.com"] }), appt);
     expect(appt.required).toEqual(["a@example.com", "c@example.com"]);
   });
+
+  it("(11) does not add required attendees as optional", async () => {
+    const appt = new FakeAppointment();
+    appt.required = ["Existing@example.com"];
+    await applyTemplate(
+      template({
+        requiredAttendees: ["a@example.com"],
+        optionalAttendees: ["A@example.com", "existing@example.com", "b@example.com"],
+      }),
+      appt,
+    );
+
+    expect(appt.required).toEqual(["Existing@example.com", "a@example.com"]);
+    expect(appt.optional).toEqual(["b@example.com"]);
+  });
 });

@@ -69,7 +69,9 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
   }
   if (t.optionalAttendees.length > 0) {
     await attempt("任意出席者", async () => {
-      const toAdd = mergeAttendees(await appt.getOptionalAttendees(), t.optionalAttendees);
+      // Required attendees take precedence, so do not list them as optional too.
+      const existing = [...(await appt.getOptionalAttendees()), ...(await appt.getRequiredAttendees())];
+      const toAdd = mergeAttendees(existing, t.optionalAttendees);
       if (toAdd.length > 0) await appt.addOptionalAttendees(toAdd);
     });
   }

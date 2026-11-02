@@ -3,6 +3,7 @@ import { createEmptyTemplate, EventTemplate, validateTemplate } from "../../src/
 const make = (overrides: Partial<EventTemplate> = {}): EventTemplate => ({
   ...createEmptyTemplate(),
   name: "定例会議",
+  subject: "定例会議",
   ...overrides,
 });
 
@@ -38,6 +39,26 @@ describe("validateTemplate", () => {
     it("ignores itself when editing", () => {
       const self = make({ name: "Weekly" });
       expect(fields({ ...self }, [self])).toEqual([]);
+    });
+  });
+
+  describe("content", () => {
+    const blank = { subject: "", body: "", location: "", requiredAttendees: [], optionalAttendees: [], durationMinutes: null };
+
+    it("requires at least one field besides the name", () => {
+      expect(fields(make(blank))).toEqual(["subject"]);
+      expect(fields(make({ ...blank, subject: "  ", body: "\n", location: " " }))).toEqual(["subject"]);
+    });
+
+    it.each<[string, Partial<EventTemplate>]>([
+      ["subject", { subject: "件名" }],
+      ["body", { body: "本文" }],
+      ["location", { location: "会議室A" }],
+      ["requiredAttendees", { requiredAttendees: ["a@example.com"] }],
+      ["optionalAttendees", { optionalAttendees: ["a@example.com"] }],
+      ["durationMinutes", { durationMinutes: 60 }],
+    ])("accepts only %s", (_name, overrides) => {
+      expect(fields(make({ ...blank, ...overrides }))).toEqual([]);
     });
   });
 

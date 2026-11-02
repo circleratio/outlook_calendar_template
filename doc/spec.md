@@ -108,6 +108,7 @@ export function validateTemplate(t: EventTemplate, others: EventTemplate[]): Val
 - `name`: 必須、50 文字以内、他のテンプレートと重複しない（大文字・小文字は区別しない）。
 - `requiredAttendees` / `optionalAttendees`: 全件が `isValidEmail` を満たす。
 - `durationMinutes`: `null` または 1〜1440 の整数。
+- 名前以外の項目がすべて空（件名・本文・場所は空白のみも空とみなす）の場合は、`subject` のエラーとして「件名・本文・場所・出席者・会議時間のいずれかを入力してください」を返す。
 
 ### core/attendees.ts
 
@@ -141,6 +142,8 @@ export const MAX_BYTES = 30000; // margin below the ~32KB roamingSettings limit
 export function serialize(templates: EventTemplate[]): string;
 export function deserialize(raw: unknown): { templates: EventTemplate[]; warning?: string };
 export function byteSize(s: string): number;               // UTF-8 bytes via TextEncoder
+export function storedByteSize(json: string): number;      // byteSize(JSON.stringify(json))
+export function exceedsLimit(json: string, currentJson: string): boolean; // over MAX_BYTES and not shrinking
 ```
 
 ### office/appointment.ts
@@ -189,7 +192,7 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 2. `durationMinutes` があり、`isAllDayRange` が偽であれば、`end = start + durationMinutes` として `setEnd()` を呼ぶ。
 3. `toLocal(start)` と `toLocal(end)` からプレースホルダーの値を作る（`end` は手順 2 の結果）。
 4. 件名・本文・場所のうち、空でない項目だけを設定する。件名と本文はプレースホルダーを展開し、本文は `plainTextToHtml` で HTML にしてから、既存の本文と分けるために末尾に `<br>` を付けて `prependBodyHtml()` で挿入する。
-5. 必須・任意出席者は、既存の出席者を取得し、`mergeAttendees` で重複を除いてから追加する。追加するものがなければ API を呼ばない。
+5. 必須・任意出席者は、既存の出席者を取得し、`mergeAttendees` で重複を除いてから追加する。任意出席者は、必須出席者の追加後に既存の任意・必須の両方と比較する。追加するものがなければ API を呼ばない。
 
 - 手順 2〜5 は項目ごとに `try/catch` し、失敗しても次の項目に進む。失敗は `failures` に集めて返し、ロールバックはしない（要求仕様どおり）。
 - 項目名の表示: `終了日時`、`件名`、`本文`、`場所`、`必須出席者`、`任意出席者`。
@@ -216,11 +219,13 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 |---|---|---|
 | 設定データが壊れている／未知の version | `storage.deserialize` | 警告「保存済みテンプレートを読み込めませんでした。データを保護するため、テンプレートの保存はできません」。`AppContext.readOnly` により保存を禁止し、［初期化］を表示する |
 | 入力検証エラー | `validateTemplate` | 該当フィールドの下にメッセージを表示し、保存しない |
-| 容量オーバー（30,000 バイト超） | `editView`（保存前に `byteSize` で確認） | エラー「保存容量の上限を超えます。本文を短くするか、不要なテンプレートを削除してください」 |
+| 容量オーバー（保存時の形式で 30,000 バイト超） | `taskpane.ts` の保存処理（`exceedsLimit` で確認） | エラー「保存容量の上限を超えます。本文を短くするか、不要なテンプレートを削除してください」 |
 | `saveAsync` の失敗 | `settings.save` | エラー「保存に失敗しました: {message}」。画面の一覧は保存前のまま（保存は毎回一覧全体を書き込むので、`roamingSettings` を元に戻す処理は不要） |
 | 開始・終了日時を取得できない | `applyTemplate` 手順 1 | エラー「イベントの日時を取得できませんでした: {message}」 |
 | 項目ごとの設定失敗 | `applyTemplate` 手順 2〜5 | エラー「次の項目を設定できませんでした: 件名（{message}）、…」 |
-| 全項目を設定できた | | 成功「テンプレート『{name}』を適用しました。内容を確認して［送信］してください」 |
+| 全項目を設定できた | | 成功「テンプレート『{name}』を適用しました。内容を確認して、送信または保存してください」 |
+
+容量の確認は、`serialize` の結果を文字列としてもう一度 JSON エンコードしたサイズで行う（`roamingSettings` が保存時に文字列値を再度シリアライズするため）。以前の判定で保存したデータは 30,000 バイトを超えていることがあるので、現在より小さくなる保存は許可し、削除や本文の短縮で減らせるようにする。Office.js の実際の判定方法は未確認なので、それでも上限を超えた場合は `saveAsync` の失敗として扱う。
 
 例外は `office/` で `Error` に変換し、画面側（`taskpane/views`）でメッセージにする。`core/` は例外を投げずに、検証結果を戻り値で返す。
 
@@ -247,8 +252,8 @@ GitHub Pages への公開は `.github/workflows/deploy-pages.yml` で行う。`m
 |---|---|
 | `placeholder` | 日付形式・曜日（月末・年末・閏日 2028/02/29）、時刻の 0 埋め、複数回の出現、未定義のプレースホルダーを残す、HTML エスケープと改行の変換、終日イベントの判定 |
 | `attendees` | 区切り文字の混在、前後の空白、空要素、大文字・小文字を区別しない重複除去、不正なアドレス |
-| `template` | 名前の必須・長さ（50 / 51 文字）・重複（編集中の自分自身は除く）、会議時間の境界値（0 / 1 / 1440 / 1441 / 小数 / null） |
-| `storage` | 往復変換、壊れた JSON、未知の version、`undefined`（未保存）、日本語を含む場合のバイト数 |
-| `applyTemplate` | モックのゲートウェイで、①全項目の適用、②空の項目を設定しない、③会議時間が null なら終了日時を変えない、④`{終了時刻}` に適用後の終了時刻を使う、⑤重複する出席者を追加しない、⑥途中の失敗を集めて残りの項目を処理する、⑦日時を取得できないときに中断する、⑧本文を HTML 化し末尾に `<br>` を付けて `prependBodyHtml` で挿入する、⑨終日イベントの終了日時を変えない、⑩再適用で前回の出席者を残す |
+| `template` | 名前の必須・長さ（50 / 51 文字）・重複（編集中の自分自身は除く）、会議時間の境界値（0 / 1 / 1440 / 1441 / 小数 / null）、名前以外がすべて空のテンプレート |
+| `storage` | 往復変換、壊れた JSON、未知の version、`undefined`（未保存）、日本語を含む場合のバイト数、再エンコード後のサイズ、上限の境界値、上限超過時にサイズが減る保存を許可する |
+| `applyTemplate` | モックのゲートウェイで、①全項目の適用、②空の項目を設定しない、③会議時間が null なら終了日時を変えない、④`{終了時刻}` に適用後の終了時刻を使う、⑤重複する出席者を追加しない、⑥途中の失敗を集めて残りの項目を処理する、⑦日時を取得できないときに中断する、⑧本文を HTML 化し末尾に `<br>` を付けて `prependBodyHtml` で挿入する、⑨終日イベントの終了日時を変えない、⑩再適用で前回の出席者を残す、⑪必須出席者を任意出席者に追加しない |
 
 画面（`taskpane/`）と `office/` のアダプターは自動テストの対象外とし、実際の新しい Outlook での手動確認で担保する。

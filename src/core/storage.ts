@@ -19,6 +19,17 @@ export function byteSize(s: string): number {
   return new TextEncoder().encode(s).length;
 }
 
+/** Size of `json` after roamingSettings encodes the string value again on save. */
+export function storedByteSize(json: string): number {
+  return byteSize(JSON.stringify(json));
+}
+
+/** True when `json` is over the limit; shrinking saves stay allowed so data already over it can be reduced. */
+export function exceedsLimit(json: string, currentJson: string): boolean {
+  const size = storedByteSize(json);
+  return size > MAX_BYTES && size >= storedByteSize(currentJson);
+}
+
 const LOAD_WARNING = "保存済みテンプレートを読み込めませんでした。データを保護するため、テンプレートの保存はできません";
 
 function isStringArray(v: unknown): v is string[] {

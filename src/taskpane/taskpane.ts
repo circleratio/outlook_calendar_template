@@ -1,5 +1,5 @@
 import { applyTemplate, DateTimeUnavailableError } from "../app/applyTemplate";
-import { byteSize, deserialize, MAX_BYTES, serialize } from "../core/storage";
+import { deserialize, exceedsLimit, serialize } from "../core/storage";
 import type { EventTemplate } from "../core/template";
 import { createOfficeAppointmentGateway } from "../office/appointment";
 import { createOfficeSettingsGateway } from "../office/settings";
@@ -30,7 +30,7 @@ function start(): void {
 
   const write = async (next: EventTemplate[]): Promise<boolean> => {
     const json = serialize(next);
-    if (byteSize(json) > MAX_BYTES) {
+    if (exceedsLimit(json, serialize(templates))) {
       showMessage("error", "保存容量の上限を超えます。本文を短くするか、不要なテンプレートを削除してください");
       return false;
     }
@@ -73,7 +73,7 @@ function start(): void {
       try {
         const { failures } = await applyTemplate(t, appointment);
         if (failures.length === 0) {
-          showMessage("success", `テンプレート「${t.name}」を適用しました。内容を確認して［送信］してください`);
+          showMessage("success", `テンプレート「${t.name}」を適用しました。内容を確認して、送信または保存してください`);
         } else {
           const detail = failures.map((f) => `${f.field}（${f.message}）`).join("、");
           showMessage("error", `次の項目を設定できませんでした: ${detail}`);

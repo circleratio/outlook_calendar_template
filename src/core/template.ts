@@ -43,6 +43,15 @@ export function validateTemplate(t: EventTemplate, others: EventTemplate[]): Val
     errors.push({ field: "name", message: "同じ名前のテンプレートがあります" });
   }
 
+  const hasContent =
+    [t.subject, t.body, t.location].some((s) => s.trim().length > 0) ||
+    t.requiredAttendees.length > 0 ||
+    t.optionalAttendees.length > 0 ||
+    t.durationMinutes !== null;
+  if (!hasContent) {
+    errors.push({ field: "subject", message: "件名・本文・場所・出席者・会議時間のいずれかを入力してください" });
+  }
+
   for (const field of ["requiredAttendees", "optionalAttendees"] as const) {
     const invalid = t[field].filter((e) => !isValidEmail(e));
     if (invalid.length > 0) {

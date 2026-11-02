@@ -1,4 +1,4 @@
-import { byteSize, deserialize, serialize } from "../../src/core/storage";
+import { byteSize, deserialize, exceedsLimit, MAX_BYTES, serialize, storedByteSize } from "../../src/core/storage";
 import { createEmptyTemplate, EventTemplate } from "../../src/core/template";
 
 const sample: EventTemplate = {
@@ -44,5 +44,37 @@ describe("byteSize", () => {
     expect(byteSize("abc")).toBe(3);
     expect(byteSize("あ")).toBe(3);
     expect(byteSize("")).toBe(0);
+  });
+});
+
+describe("storedByteSize", () => {
+  it("includes the second encoding of quotes and newlines", () => {
+    expect(storedByteSize("abc")).toBe(5);
+    expect(storedByteSize('"')).toBe(4);
+    expect(storedByteSize("\n")).toBe(4);
+    expect(storedByteSize("あ")).toBe(5);
+  });
+});
+
+describe("exceedsLimit", () => {
+  // storedByteSize adds 2 bytes for the surrounding quotes.
+  const ofSize = (n: number) => "a".repeat(n - 2);
+
+  it("allows data up to the limit and rejects data above it", () => {
+    expect(exceedsLimit(ofSize(MAX_BYTES), "")).toBe(false);
+    expect(exceedsLimit(ofSize(MAX_BYTES + 1), "")).toBe(true);
+  });
+
+  it("measures the size after the second encoding", () => {
+    const quotes = '"'.repeat(MAX_BYTES / 2);
+    expect(byteSize(quotes)).toBeLessThanOrEqual(MAX_BYTES);
+    expect(exceedsLimit(quotes, "")).toBe(true);
+  });
+
+  it("allows only shrinking saves when the current data is over the limit", () => {
+    const current = ofSize(MAX_BYTES + 100);
+    expect(exceedsLimit(ofSize(MAX_BYTES + 50), current)).toBe(false);
+    expect(exceedsLimit(current, current)).toBe(true);
+    expect(exceedsLimit(ofSize(MAX_BYTES + 200), current)).toBe(true);
   });
 });
