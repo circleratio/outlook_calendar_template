@@ -233,7 +233,7 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 1. 開発中: `npm run dev-server` を起動したまま、ブラウザーで `https://aka.ms/olksideload` を開き、「Add-Ins for Outlook」ダイアログの「My add-ins → Add a custom add-in → Add from File」で `manifest.xml` を登録する。
 2. 本番: `dist/` を GitHub Pages に公開し、`dist/manifest.xml` を同じ手順で登録する（開発用のマニフェストは先に削除する）。
 
-本番 URL は `https://<GitHubユーザー名>.github.io/<リポジトリ名>/` とし、`webpack.config.js` の定数 `urlProd` で指定する（リポジトリが決まったら設定する）。
+本番 URL は `https://circleratio.github.io/outlook_calendar_template/` とし、`webpack.config.js` の定数 `urlProd` で指定する。
 
 ## 8. テスト方針
 

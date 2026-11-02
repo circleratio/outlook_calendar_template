@@ -4,8 +4,7 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 const devCerts = require("office-addin-dev-certs");
 
 const urlDev = "https://localhost:3000/";
-// TODO: set to the GitHub Pages URL once the repository is decided.
-const urlProd = "https://YOUR-GITHUB-USER.github.io/outlook-calendar-template/";
+const urlProd = "https://circleratio.github.io/outlook_calendar_template/";
 
 module.exports = async (_env, options) => {
   const dev = options.mode === "development";

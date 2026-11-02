@@ -45,16 +45,17 @@
 
 ### 本番用（GitHub Pages）
 
-1. `webpack.config.js` の定数 `urlProd` を、公開先の URL（`https://<GitHubユーザー名>.github.io/<リポジトリ名>/`）に書き換えます。現在の値は仮のものなので、変更しないと動作しません。
-2. ビルドします。`dist/` に公開用ファイルと、URL を置き換えた `manifest.xml` が出力されます。
+公開先の URL は `https://circleratio.github.io/outlook_calendar_template/` です。GitHub Pages への公開はまだ行っていないため、現時点では次の手順を自分で実施する必要があります。別の場所に公開する場合は、`webpack.config.js` の定数 `urlProd` を書き換えてください。
+
+1. ビルドします。`dist/` に公開用ファイルと、URL を置き換えた `manifest.xml` が出力されます。
 
    ```powershell
    npm run build
    ```
 
-3. `dist/` を GitHub Pages に公開します。
-4. 開発用のアドインを登録済みの場合は先に削除します（「Add-Ins for Outlook」ダイアログの **Custom Addins** で、対象の「…」から **Remove** を選びます）。
-5. 開発用と同じ手順で `dist/manifest.xml` を登録します。
+2. `dist/` を GitHub Pages に公開します。
+3. 開発用のアドインを登録済みの場合は先に削除します（「Add-Ins for Outlook」ダイアログの **Custom Addins** で、対象の「…」から **Remove** を選びます）。
+4. 開発用と同じ手順で `dist/manifest.xml` を登録します。
 
 ## 使いかた
 
@@ -135,3 +136,7 @@ Windows では、コマンドを PowerShell で実行してください。環境
 - [doc/requirement.md](doc/requirement.md): 要求仕様
 - [doc/spec.md](doc/spec.md): 設計
 - [doc/plan.md](doc/plan.md): 実装計画と手動確認の項目
+
+## ライセンス
+
+[MIT License](LICENSE)
