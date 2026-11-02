@@ -95,7 +95,7 @@ S1 ─┬─ S2 (core) ──┬─ S4 (app) ─┐
 npm run dev-server
 ```
 
-新しい Outlook で「アドインを取得 → 個人用アドイン → カスタムアドインを追加 → ファイルから追加」を選び、`manifest.xml` を登録する。
+ブラウザーで `https://aka.ms/olksideload` を開き、「Add-Ins for Outlook」ダイアログの「My add-ins → Add a custom add-in → Add from File」で `manifest.xml` を登録する。
 
 requirement.md の「使いかた」と突き合わせて確認する:
 

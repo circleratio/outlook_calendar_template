@@ -66,7 +66,7 @@
 ### 配布・動作環境
 
 - 対象クライアント: Windows 版の新しい Outlook、Outlook on the web。
-- 配布: 個人でのサイドロード（「アドインを取得」→「個人用アドイン」→「カスタムアドインを追加」）。組織への一括展開は対象外。
+- 配布: 個人でのサイドロード（`https://aka.ms/olksideload` で開く「Add-Ins for Outlook」ダイアログの「My add-ins」→「Add a custom add-in」）。組織への一括展開は対象外。
 - アドインの Web 資産は HTTPS でホストする必要がある。開発中は `https://localhost:3000`、本番は GitHub Pages でホストする（詳細は [spec.md](spec.md)）。
 
 ### 対象外

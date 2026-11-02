@@ -7,7 +7,7 @@
 | 項目 | 採用 | 理由 |
 |---|---|---|
 | アドイン形式 | Office アドイン（Outlook Web アドイン） | 新しい Outlook で動く唯一の形式 |
-| マニフェスト | アドイン専用 XML マニフェスト（`manifest.xml`） | 新しい Outlook の「カスタムアドインを追加 → ファイルから追加」で直接サイドロードできる |
+| マニフェスト | アドイン専用 XML マニフェスト（`manifest.xml`） | 「Add-Ins for Outlook」ダイアログの「Add a custom add-in → Add from File」で直接サイドロードできる |
 | 言語 | TypeScript 5 系 | Office.js の型定義（`@types/office-js`）を使える。TypeScript 7 は `ts-loader` / `ts-jest` が未対応のため使わない |
 | UI | フレームワークを使わない DOM 操作と CSS | 画面は 3 つだけなので React などは不要。依存関係を少なく保つ |
 | ビルド | webpack（`ts-loader`、`html-webpack-plugin`、`copy-webpack-plugin`） | Office アドインの標準的な構成（`yo office` の TypeScript テンプレート相当） |
@@ -230,7 +230,7 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 | `npm run validate` | `office-addin-manifest validate manifest.xml` でマニフェストを検証する |
 
 サイドロードの手順（新しい Outlook / Outlook on the web 共通）:
-1. 開発中: `npm run dev-server` を起動したまま、`manifest.xml` を「アドインを取得 → 個人用アドイン → カスタムアドインを追加 → ファイルから追加」で登録する。
+1. 開発中: `npm run dev-server` を起動したまま、ブラウザーで `https://aka.ms/olksideload` を開き、「Add-Ins for Outlook」ダイアログの「My add-ins → Add a custom add-in → Add from File」で `manifest.xml` を登録する。
 2. 本番: `dist/` を GitHub Pages に公開し、`dist/manifest.xml` を同じ手順で登録する（開発用のマニフェストは先に削除する）。
 
 本番 URL は `https://<GitHubユーザー名>.github.io/<リポジトリ名>/` とし、`webpack.config.js` の定数 `urlProd` で指定する（リポジトリが決まったら設定する）。
