@@ -6,52 +6,25 @@
 - Office.js だけで動作します。Microsoft Graph API や Entra ID のアプリ登録は不要です。
 - 会議開催通知の送信は Outlook 標準の［送信］ボタンで行います。アドインからは送信しません。
 
-## 必要環境
+## 対応する Outlook
 
-| 項目 | 内容 |
-|---|---|
-| 対象クライアント | Windows 版の新しい Outlook、Outlook on the web（Classic Outlook とモバイル版は対象外） |
-| 開発環境 | Node.js 24 / npm 12（動作確認済みのバージョン） |
+Windows 版の新しい Outlook と Outlook on the web で使えます。Classic Outlook とモバイル版には対応していません。
 
 ## インストール
 
-アドインはサイドロードで個人のメールボックスに登録します。組織への一括展開には対応していません。
-
-### 開発用（localhost）
-
-1. 依存パッケージと、開発サーバー用の HTTPS 証明書をインストールします。証明書のインストール時に確認ダイアログが表示されます。
-
-   ```powershell
-   npm install
-   npx office-addin-dev-certs install
-   ```
-
-2. 開発サーバーを起動します（`https://localhost:3000`）。アドインを使っている間は起動したままにします。
-
-   ```powershell
-   npm run dev-server
-   ```
-
-3. ブラウザーで <https://aka.ms/olksideload> を開きます。Outlook on the web が開き、しばらくすると「Add-Ins for Outlook」ダイアログが表示されます。
-4. ダイアログで次の順に選び、リポジトリ直下の `manifest.xml` を登録します。
-
-   1. **My add-ins**（個人用アドイン）
-   2. ダイアログ下部の **Custom Addins**（カスタムアドイン）にある **Add a custom add-in**（カスタムアドインを追加）
-   3. **Add from File**（ファイルから追加）
-
-登録したアドインは、新しい Outlook アプリにも表示されます。Outlook アプリのメニューには、カスタムアドインを追加する項目がありません。
-
-ダイアログや **Custom Addins** の欄が表示されない場合は、別のブラウザーかシークレットウィンドウで試してください。それでも表示されない場合は、組織の設定でサイドロードが制限されている可能性があるので、管理者に確認してください。
-
-### 本番用（GitHub Pages）
-
-公開済みのアドインを使う場合は、開発サーバーや証明書は不要です。
+自分の Outlook アカウントに、アドインの定義ファイル（`manifest.xml`）を登録します。登録はブラウザーから行います。Outlook アプリのメニューには、登録する項目がありません。
 
 1. <https://circleratio.github.io/outlook_calendar_template/manifest.xml> をファイルとしてダウンロードします。
-2. 開発用のアドインを登録済みの場合は先に削除します（「Add-Ins for Outlook」ダイアログの **Custom Addins** で、対象の「…」から **Remove** を選びます）。
-3. 開発用と同じ手順で、ダウンロードした `manifest.xml` を登録します。
+2. ブラウザーで <https://aka.ms/olksideload> を開きます。Outlook on the web が開き、しばらくすると「Add-Ins for Outlook」ダイアログが表示されます。
+3. **My add-ins**（個人用アドイン）を選びます。
+4. ダイアログ下部の **Custom Addins**（カスタムアドイン）にある **Add a custom add-in**（カスタムアドインを追加）を押し、**Add from File**（ファイルから追加）を選びます。
+5. ダウンロードした `manifest.xml` を選び、確認画面が出たら承諾します。
 
-`main` ブランチにプッシュすると、GitHub Actions がテストとビルドを実行し、GitHub Pages に自動で公開します。別の場所に公開する場合は、`webpack.config.js` の定数 `urlProd` を書き換えてください。
+登録したアドインは、新しい Outlook アプリにも表示されます。アンインストールするには、同じダイアログの **Custom Addins** で、対象の「…」から **Remove** を選びます。
+
+ダイアログや **Custom Addins** の欄が表示されない場合は、別のブラウザーかシークレットウィンドウで試してください。それでも表示されない場合は、組織の設定でカスタムアドインの追加が制限されている可能性があるので、管理者に確認してください。
+
+組織全体への一括展開には対応していません。
 
 ## 使いかた
 
@@ -115,7 +88,26 @@
 
 ## 開発
 
-Windows では、コマンドを PowerShell で実行してください。環境によっては Git Bash に `node` / `npm` の PATH が通っていません。
+動作確認済みのバージョンは Node.js 24 / npm 12 です。Windows では、コマンドを PowerShell で実行してください。環境によっては Git Bash に `node` / `npm` の PATH が通っていません。
+
+### 開発環境で動かす
+
+1. 依存パッケージと、開発サーバー用の HTTPS 証明書をインストールします。証明書のインストール時に確認ダイアログが表示されます。
+
+   ```powershell
+   npm install
+   npx office-addin-dev-certs install
+   ```
+
+2. 開発サーバーを起動します（`https://localhost:3000`）。動作確認の間は起動したままにします。
+
+   ```powershell
+   npm run dev-server
+   ```
+
+3. 「[インストール](#インストール)」の手順 2〜5 で、リポジトリ直下の `manifest.xml` を登録します。公開版を登録済みの場合は、先に削除してください。開発版と公開版はアドイン ID が同じです。
+
+### コマンド
 
 | コマンド | 内容 |
 |---|---|
@@ -126,6 +118,10 @@ Windows では、コマンドを PowerShell で実行してください。環境
 | `npm run validate` | `manifest.xml` を検証する |
 
 自動テストの対象は `src/core/` と `src/app/` です。`src/office/` と `src/taskpane/` は対象外なので、実際の Outlook で動作を確認してください。確認項目は [doc/plan.md](doc/plan.md) の S8 にあります。
+
+### 公開
+
+`main` ブランチにプッシュすると、GitHub Actions がテストとビルドを実行し、GitHub Pages に自動で公開します。別の場所に公開する場合は、`webpack.config.js` の定数 `urlProd` を書き換えてください。
 
 ## ドキュメント
 
