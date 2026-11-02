@@ -45,17 +45,13 @@
 
 ### 本番用（GitHub Pages）
 
-公開先の URL は `https://circleratio.github.io/outlook_calendar_template/` です。GitHub Pages への公開はまだ行っていないため、現時点では次の手順を自分で実施する必要があります。別の場所に公開する場合は、`webpack.config.js` の定数 `urlProd` を書き換えてください。
+公開済みのアドインを使う場合は、開発サーバーや証明書は不要です。
 
-1. ビルドします。`dist/` に公開用ファイルと、URL を置き換えた `manifest.xml` が出力されます。
+1. <https://circleratio.github.io/outlook_calendar_template/manifest.xml> をファイルとしてダウンロードします。
+2. 開発用のアドインを登録済みの場合は先に削除します（「Add-Ins for Outlook」ダイアログの **Custom Addins** で、対象の「…」から **Remove** を選びます）。
+3. 開発用と同じ手順で、ダウンロードした `manifest.xml` を登録します。
 
-   ```powershell
-   npm run build
-   ```
-
-2. `dist/` を GitHub Pages に公開します。
-3. 開発用のアドインを登録済みの場合は先に削除します（「Add-Ins for Outlook」ダイアログの **Custom Addins** で、対象の「…」から **Remove** を選びます）。
-4. 開発用と同じ手順で `dist/manifest.xml` を登録します。
+`main` ブランチにプッシュすると、GitHub Actions がテストとビルドを実行し、GitHub Pages に自動で公開します。別の場所に公開する場合は、`webpack.config.js` の定数 `urlProd` を書き換えてください。
 
 ## 使いかた
 

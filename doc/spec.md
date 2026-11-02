@@ -231,7 +231,9 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 
 サイドロードの手順（新しい Outlook / Outlook on the web 共通）:
 1. 開発中: `npm run dev-server` を起動したまま、ブラウザーで `https://aka.ms/olksideload` を開き、「Add-Ins for Outlook」ダイアログの「My add-ins → Add a custom add-in → Add from File」で `manifest.xml` を登録する。
-2. 本番: `dist/` を GitHub Pages に公開し、`dist/manifest.xml` を同じ手順で登録する（開発用のマニフェストは先に削除する）。
+2. 本番: 公開済みの `manifest.xml` をダウンロードし、同じ手順で登録する（開発用のマニフェストは先に削除する）。
+
+GitHub Pages への公開は `.github/workflows/deploy-pages.yml` で行う。`main` へのプッシュ時に `npm test` と `npm run build` を実行し、`dist/` を公開する。
 
 本番 URL は `https://circleratio.github.io/outlook_calendar_template/` とし、`webpack.config.js` の定数 `urlProd` で指定する。
 
