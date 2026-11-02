@@ -33,6 +33,13 @@ export function buildPlaceholderValues(start: LocalDateTime, end: LocalDateTime)
   return { date: formatDate(start), start: formatTime(start), end: formatTime(end) };
 }
 
+/** All-day events run from 00:00 to 00:00 on a later date; Office.js has no GA API to read the flag. */
+export function isAllDayRange(start: LocalDateTime, end: LocalDateTime): boolean {
+  const atMidnight = (d: LocalDateTime) => d.hours === 0 && d.minutes === 0;
+  const sameDate = start.year === end.year && start.month === end.month && start.day === end.day;
+  return atMidnight(start) && atMidnight(end) && !sameDate;
+}
+
 export function expandPlaceholders(text: string, v: PlaceholderValues): string {
   return text
     .replace(/\{日付\}/g, v.date)

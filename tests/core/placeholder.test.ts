@@ -3,6 +3,7 @@ import {
   expandPlaceholders,
   formatDate,
   formatTime,
+  isAllDayRange,
   LocalDateTime,
   plainTextToHtml,
 } from "../../src/core/placeholder";
@@ -33,6 +34,19 @@ describe("formatTime", () => {
     expect(formatTime(dt(2026, 1, 1, 9, 5))).toBe("09:05");
     expect(formatTime(dt(2026, 1, 1, 0, 0))).toBe("00:00");
     expect(formatTime(dt(2026, 1, 1, 23, 59))).toBe("23:59");
+  });
+});
+
+describe("isAllDayRange", () => {
+  it.each([
+    ["one day", dt(2026, 11, 5), dt(2026, 11, 6), true],
+    ["several days", dt(2026, 11, 5), dt(2026, 11, 8), true],
+    ["across a month end", dt(2026, 11, 30), dt(2026, 12, 1), true],
+    ["same midnight", dt(2026, 11, 5), dt(2026, 11, 5), false],
+    ["start not at midnight", dt(2026, 11, 5, 10), dt(2026, 11, 6), false],
+    ["end not at midnight", dt(2026, 11, 5), dt(2026, 11, 6, 0, 30), false],
+  ])("%s", (_name, start, end, expected) => {
+    expect(isAllDayRange(start, end)).toBe(expected);
   });
 });
 

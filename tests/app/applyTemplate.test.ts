@@ -37,9 +37,9 @@ class FakeAppointment implements AppointmentGateway {
     this.guard("setSubject");
     this.subject = s;
   }
-  async setBodyHtml(html: string) {
-    this.guard("setBodyHtml");
-    this.body = html;
+  async prependBodyHtml(html: string) {
+    this.guard("prependBodyHtml");
+    this.body = html + this.body;
   }
   async setLocation(s: string) {
     this.guard("setLocation");
@@ -93,7 +93,7 @@ describe("applyTemplate", () => {
     expect(result.failures).toEqual([]);
     expect(appt.end.toISOString()).toBe("2026-11-05T02:00:00.000Z");
     expect(appt.subject).toBe("2026/11/05(木) 定例会議");
-    expect(appt.body).toBe("10:00〜11:00<br>&lt;議題&gt;");
+    expect(appt.body).toBe("10:00〜11:00<br>&lt;議題&gt;<br>");
     expect(appt.location).toBe("会議室A");
     expect(appt.required).toEqual(["a@example.com"]);
     expect(appt.optional).toEqual(["b@example.com"]);
@@ -119,7 +119,7 @@ describe("applyTemplate", () => {
 
     expect(appt.calls).not.toContain("setEnd");
     expect(appt.end.toISOString()).toBe("2026-11-05T01:30:00.000Z");
-    expect(appt.body).toBe("10:00〜10:30<br>&lt;議題&gt;");
+    expect(appt.body).toBe("10:00〜10:30<br>&lt;議題&gt;<br>");
   });
 
   it("(4) uses the applied end time for {終了時刻}", async () => {
@@ -151,7 +151,7 @@ describe("applyTemplate", () => {
       { field: "任意出席者", message: "addOptionalAttendees failed" },
     ]);
     // End time unchanged, so {終了時刻} falls back to the original end.
-    expect(appt.body).toBe("10:00〜10:30<br>&lt;議題&gt;");
+    expect(appt.body).toBe("10:00〜10:30<br>&lt;議題&gt;<br>");
     expect(appt.location).toBe("会議室A");
     expect(appt.required).toEqual(["a@example.com"]);
   });
@@ -162,5 +162,34 @@ describe("applyTemplate", () => {
 
     await expect(applyTemplate(template(), appt)).rejects.toBeInstanceOf(DateTimeUnavailableError);
     expect(appt.calls.filter((c) => c.startsWith("set") || c.startsWith("add"))).toEqual([]);
+  });
+
+  it("(8) prepends the body and keeps the existing body", async () => {
+    const appt = new FakeAppointment();
+    appt.body = "<p>署名</p>";
+    await applyTemplate(template({ body: "本文" }), appt);
+    expect(appt.body).toBe("本文<br><p>署名</p>");
+
+    await applyTemplate(template({ body: "二回目" }), appt);
+    expect(appt.body).toBe("二回目<br>本文<br><p>署名</p>");
+  });
+
+  it("(9) keeps the end time of an all-day event", async () => {
+    const appt = new FakeAppointment();
+    appt.start = new Date("2026-11-04T15:00:00Z"); // 11/05 00:00 JST
+    appt.end = new Date("2026-11-05T15:00:00Z"); // 11/06 00:00 JST
+    const result = await applyTemplate(template({ subject: "{開始時刻}-{終了時刻}" }), appt);
+
+    expect(result.failures).toEqual([]);
+    expect(appt.calls).not.toContain("setEnd");
+    expect(appt.end.toISOString()).toBe("2026-11-05T15:00:00.000Z");
+    expect(appt.subject).toBe("00:00-00:00");
+  });
+
+  it("(10) keeps attendees added by a previously applied template", async () => {
+    const appt = new FakeAppointment();
+    await applyTemplate(template({ requiredAttendees: ["a@example.com"] }), appt);
+    await applyTemplate(template({ requiredAttendees: ["c@example.com"] }), appt);
+    expect(appt.required).toEqual(["a@example.com", "c@example.com"]);
   });
 });

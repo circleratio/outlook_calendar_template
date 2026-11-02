@@ -60,7 +60,7 @@ outlook/
 | 要素 | 値 |
 |---|---|
 | `DisplayName` | 予定表テンプレート |
-| `Requirements` | `Mailbox` 1.3 以上（`body.setAsync` に 1.3 が必要。それ以外の API は 1.1） |
+| `Requirements` | `Mailbox` 1.3 以上（`body.prependAsync` に 1.3 が必要。それ以外の API は 1.1） |
 | `Permissions` | `ReadWriteItem` |
 | `ExtensionPoint` | `AppointmentOrganizerCommandSurface`（予定の作成フォーム／開催者モード） |
 | ボタン | ラベル「テンプレート」、アクション `ShowTaskpane`（`taskpane.html`） |
@@ -91,7 +91,7 @@ export interface EventTemplate {
 { "version": 1, "templates": [ /* EventTemplate[] */ ] }
 ```
 
-- `version` は将来スキーマを変えたときの移行に使う。読み込み時に未知の `version` だった場合や JSON が壊れていた場合は、空の一覧として扱い、警告を表示する（データは上書きしない）。
+- `version` は将来スキーマを変えたときの移行に使う。読み込み時に未知の `version` だった場合や JSON が壊れていた場合は、空の一覧として扱い、警告を表示して保存を禁止する（データを上書きしないため）。
 - 一覧の表示順は保存されている配列の順とする（新規作成は末尾に追加）。
 
 ## 5. モジュールと主要シグネチャ
@@ -123,6 +123,7 @@ export function mergeAttendees(existing: string[], toAdd: string[]): string[]; /
 export interface LocalDateTime { year: number; month: number; day: number; hours: number; minutes: number } // month: 1-12
 export interface PlaceholderValues { date: string; start: string; end: string }
 export function buildPlaceholderValues(start: LocalDateTime, end: LocalDateTime): PlaceholderValues;
+export function isAllDayRange(start: LocalDateTime, end: LocalDateTime): boolean; // both 00:00 on different dates
 export function expandPlaceholders(text: string, v: PlaceholderValues): string;
 export function plainTextToHtml(text: string): string;     // escape &<>"' and convert \r?\n to <br>
 ```
@@ -130,6 +131,7 @@ export function plainTextToHtml(text: string): string;     // escape &<>"' and c
 - `{日付}` → `yyyy/MM/dd(曜)`（曜日は `日月火水木金土`。`Date.UTC(year, month-1, day)` の `getUTCDay()` から求めるので、実行環境のタイムゾーンに左右されない）。
 - `{開始時刻}` / `{終了時刻}` → `HH:mm`（24 時間制、0 埋め）。
 - 未定義の `{...}` はそのまま残す。
+- `isAllDayRange` は日時の形で終日イベントを判定する。`item.isAllDayEvent` は Mailbox preview の API で本番利用が禁止されているため使わない。0:00 から翌日以降の 0:00 までの通常のイベントも終日として扱うが、終了日時を変更しないだけなので影響は小さい。
 
 ### core/storage.ts
 
@@ -149,7 +151,7 @@ export interface AppointmentGateway {
   getEnd(): Promise<Date>;
   setEnd(d: Date): Promise<void>;
   setSubject(s: string): Promise<void>;
-  setBodyHtml(html: string): Promise<void>;
+  prependBodyHtml(html: string): Promise<void>;
   setLocation(s: string): Promise<void>;
   getRequiredAttendees(): Promise<string[]>;
   addRequiredAttendees(emails: string[]): Promise<void>;
@@ -161,7 +163,7 @@ export function createOfficeAppointmentGateway(): AppointmentGateway;
 ```
 
 - `*Async` のコールバックを Promise に包む共通ヘルパー `promisify` を持つ。`asyncResult.status === Failed` のときは `asyncResult.error.message` を持つ `Error` で reject する。
-- 本文は `body.setAsync(html, { coercionType: Office.CoercionType.Html })` で設定する。
+- 本文は `body.prependAsync(html, { coercionType: Office.CoercionType.Html })` で既存の本文の先頭に挿入する。
 - 日時の表示用の変換は `Office.context.mailbox.convertToLocalClientTime` を使い、メールボックスのタイムゾーンに合わせる（ブラウザーのタイムゾーンではない）。
 
 ### office/settings.ts
@@ -184,9 +186,9 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 
 処理順:
 1. `getStart()` と `getEnd()` を取得する（失敗した場合は、以降の処理を行わずに中断してエラーにする）。
-2. `durationMinutes` があれば、`end = start + durationMinutes` として `setEnd()` を呼ぶ。
+2. `durationMinutes` があり、`isAllDayRange` が偽であれば、`end = start + durationMinutes` として `setEnd()` を呼ぶ。
 3. `toLocal(start)` と `toLocal(end)` からプレースホルダーの値を作る（`end` は手順 2 の結果）。
-4. 件名・本文・場所のうち、空でない項目だけを設定する。件名と本文はプレースホルダーを展開し、本文は `plainTextToHtml` で HTML にする。
+4. 件名・本文・場所のうち、空でない項目だけを設定する。件名と本文はプレースホルダーを展開し、本文は `plainTextToHtml` で HTML にしてから、既存の本文と分けるために末尾に `<br>` を付けて `prependBodyHtml()` で挿入する。
 5. 必須・任意出席者は、既存の出席者を取得し、`mergeAttendees` で重複を除いてから追加する。追加するものがなければ API を呼ばない。
 
 - 手順 2〜5 は項目ごとに `try/catch` し、失敗しても次の項目に進む。失敗は `failures` に集めて返し、ロールバックはしない（要求仕様どおり）。
@@ -195,6 +197,8 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 ### taskpane/
 
 - `taskpane.ts`: `Office.onReady` の後にテンプレートを読み込み、`listView` を表示する。画面の切り替えは `main` 要素の中身を差し替えるだけの単純なルーターで行う。
+- `AppContext` に `readOnly: boolean`（`deserialize` が `warning` を返したとき `true`）と `resetTemplates(): Promise<boolean>` を持たせる。`readOnly` のとき、`listView` は［新規作成］と［テンプレート管理］の代わりに［初期化］を表示するので、管理画面と編集画面には移動できない。`saveTemplates` はエラーを表示して `false` を返す。
+- ［初期化］はインラインの確認表示（［初期化する］［やめる］）を経て `resetTemplates` を呼ぶ。空の一覧を保存できたら `readOnly` を解除し、一覧画面を再表示する。保存に失敗した場合は `readOnly` のままにする。
 - 3 つの画面:
 
 | 画面 | 内容 | 操作 |
@@ -210,7 +214,7 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 
 | 状況 | 検出箇所 | ユーザーへの表示 |
 |---|---|---|
-| 設定データが壊れている／未知の version | `storage.deserialize` | 警告「保存済みテンプレートを読み込めませんでした」。保存するまで既存データは上書きしない |
+| 設定データが壊れている／未知の version | `storage.deserialize` | 警告「保存済みテンプレートを読み込めませんでした。データを保護するため、テンプレートの保存はできません」。`AppContext.readOnly` により保存を禁止し、［初期化］を表示する |
 | 入力検証エラー | `validateTemplate` | 該当フィールドの下にメッセージを表示し、保存しない |
 | 容量オーバー（30,000 バイト超） | `editView`（保存前に `byteSize` で確認） | エラー「保存容量の上限を超えます。本文を短くするか、不要なテンプレートを削除してください」 |
 | `saveAsync` の失敗 | `settings.save` | エラー「保存に失敗しました: {message}」。画面の一覧は保存前のまま（保存は毎回一覧全体を書き込むので、`roamingSettings` を元に戻す処理は不要） |
@@ -241,10 +245,10 @@ GitHub Pages への公開は `.github/workflows/deploy-pages.yml` で行う。`m
 
 | 対象 | 観点 |
 |---|---|
-| `placeholder` | 日付形式・曜日（月末・年末・閏日 2028/02/29）、時刻の 0 埋め、複数回の出現、未定義のプレースホルダーを残す、HTML エスケープと改行の変換 |
+| `placeholder` | 日付形式・曜日（月末・年末・閏日 2028/02/29）、時刻の 0 埋め、複数回の出現、未定義のプレースホルダーを残す、HTML エスケープと改行の変換、終日イベントの判定 |
 | `attendees` | 区切り文字の混在、前後の空白、空要素、大文字・小文字を区別しない重複除去、不正なアドレス |
 | `template` | 名前の必須・長さ（50 / 51 文字）・重複（編集中の自分自身は除く）、会議時間の境界値（0 / 1 / 1440 / 1441 / 小数 / null） |
 | `storage` | 往復変換、壊れた JSON、未知の version、`undefined`（未保存）、日本語を含む場合のバイト数 |
-| `applyTemplate` | モックのゲートウェイで、①全項目の適用、②空の項目を設定しない、③会議時間が null なら終了日時を変えない、④`{終了時刻}` に適用後の終了時刻を使う、⑤重複する出席者を追加しない、⑥途中の失敗を集めて残りの項目を処理する、⑦日時を取得できないときに中断する |
+| `applyTemplate` | モックのゲートウェイで、①全項目の適用、②空の項目を設定しない、③会議時間が null なら終了日時を変えない、④`{終了時刻}` に適用後の終了時刻を使う、⑤重複する出席者を追加しない、⑥途中の失敗を集めて残りの項目を処理する、⑦日時を取得できないときに中断する、⑧本文を HTML 化し末尾に `<br>` を付けて `prependBodyHtml` で挿入する、⑨終日イベントの終了日時を変えない、⑩再適用で前回の出席者を残す |
 
 画面（`taskpane/`）と `office/` のアダプターは自動テストの対象外とし、実際の新しい Outlook での手動確認で担保する。

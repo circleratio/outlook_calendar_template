@@ -1,5 +1,5 @@
 import { mergeAttendees } from "../core/attendees";
-import { buildPlaceholderValues, expandPlaceholders, plainTextToHtml } from "../core/placeholder";
+import { buildPlaceholderValues, expandPlaceholders, isAllDayRange, plainTextToHtml } from "../core/placeholder";
 import type { EventTemplate } from "../core/template";
 import type { AppointmentGateway } from "../office/appointment";
 
@@ -41,7 +41,7 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
     }
   };
 
-  if (t.durationMinutes !== null) {
+  if (t.durationMinutes !== null && !isAllDayRange(appt.toLocal(start), appt.toLocal(end))) {
     const newEnd = new Date(start.getTime() + t.durationMinutes * 60_000);
     await attempt("終了日時", async () => {
       await appt.setEnd(newEnd);
@@ -55,7 +55,8 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
     await attempt("件名", () => appt.setSubject(expandPlaceholders(t.subject, values)));
   }
   if (t.body !== "") {
-    await attempt("本文", () => appt.setBodyHtml(plainTextToHtml(expandPlaceholders(t.body, values))));
+    // The trailing <br> keeps the existing body on its own line.
+    await attempt("本文", () => appt.prependBodyHtml(`${plainTextToHtml(expandPlaceholders(t.body, values))}<br>`));
   }
   if (t.location !== "") {
     await attempt("場所", () => appt.setLocation(t.location));

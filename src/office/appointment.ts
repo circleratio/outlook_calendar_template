@@ -5,7 +5,7 @@ export interface AppointmentGateway {
   getEnd(): Promise<Date>;
   setEnd(d: Date): Promise<void>;
   setSubject(s: string): Promise<void>;
-  setBodyHtml(html: string): Promise<void>;
+  prependBodyHtml(html: string): Promise<void>;
   setLocation(s: string): Promise<void>;
   getRequiredAttendees(): Promise<string[]>;
   addRequiredAttendees(emails: string[]): Promise<void>;
@@ -42,8 +42,8 @@ export function createOfficeAppointmentGateway(): AppointmentGateway {
     getEnd: () => promisify<Date>((cb) => item.end.getAsync(cb)),
     setEnd: (d) => promisify<void>((cb) => item.end.setAsync(d, cb)),
     setSubject: (s) => promisify<void>((cb) => item.subject.setAsync(s, cb)),
-    setBodyHtml: (html) =>
-      promisify<void>((cb) => item.body.setAsync(html, { coercionType: Office.CoercionType.Html }, cb)),
+    prependBodyHtml: (html) =>
+      promisify<void>((cb) => item.body.prependAsync(html, { coercionType: Office.CoercionType.Html }, cb)),
     setLocation: (s) => promisify<void>((cb) => item.location.setAsync(s, cb)),
     getRequiredAttendees: () => getEmails(item.requiredAttendees),
     addRequiredAttendees: (emails) => promisify<void>((cb) => item.requiredAttendees.addAsync(emails, cb)),

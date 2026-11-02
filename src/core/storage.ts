@@ -19,7 +19,7 @@ export function byteSize(s: string): number {
   return new TextEncoder().encode(s).length;
 }
 
-const LOAD_WARNING = "保存済みテンプレートを読み込めませんでした";
+const LOAD_WARNING = "保存済みテンプレートを読み込めませんでした。データを保護するため、テンプレートの保存はできません";
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((s) => typeof s === "string");

@@ -21,31 +21,50 @@ function start(): void {
 
   const loaded = deserialize(settings.load());
   let templates: EventTemplate[] = loaded.templates;
+  let readOnly = loaded.warning !== undefined;
 
   const showMessage = (kind: MessageKind, text: string) => {
     messageBar.replaceChildren(h("div", { class: `message ${kind}`, role: kind === "success" ? "status" : "alert" }, text));
   };
   const clearMessage = () => messageBar.replaceChildren();
 
+  const write = async (next: EventTemplate[]): Promise<boolean> => {
+    const json = serialize(next);
+    if (byteSize(json) > MAX_BYTES) {
+      showMessage("error", "保存容量の上限を超えます。本文を短くするか、不要なテンプレートを削除してください");
+      return false;
+    }
+    try {
+      await settings.save(json);
+    } catch (e) {
+      // Every save writes the whole list, so no rollback of roamingSettings is needed.
+      showMessage("error", `保存に失敗しました: ${errorMessage(e)}`);
+      return false;
+    }
+    templates = next;
+    return true;
+  };
+
   const ctx: AppContext = {
     get templates() {
       return templates;
     },
 
+    get readOnly() {
+      return readOnly;
+    },
+
     async saveTemplates(next) {
-      const json = serialize(next);
-      if (byteSize(json) > MAX_BYTES) {
-        showMessage("error", "保存容量の上限を超えます。本文を短くするか、不要なテンプレートを削除してください");
+      if (readOnly) {
+        showMessage("error", "保存済みテンプレートを読み込めないため、保存できません");
         return false;
       }
-      try {
-        await settings.save(json);
-      } catch (e) {
-        // Every save writes the whole list, so no rollback of roamingSettings is needed.
-        showMessage("error", `保存に失敗しました: ${errorMessage(e)}`);
-        return false;
-      }
-      templates = next;
+      return write(next);
+    },
+
+    async resetTemplates() {
+      if (!(await write([]))) return false;
+      readOnly = false;
       return true;
     },
 

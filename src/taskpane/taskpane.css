@@ -134,7 +134,7 @@ label.item:hover {
   overflow-wrap: anywhere;
 }
 
-.item .confirm {
+.confirm {
   color: var(--error-fg);
 }
 
