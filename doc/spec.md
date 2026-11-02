@@ -60,7 +60,7 @@ outlook/
 | 要素 | 値 |
 |---|---|
 | `DisplayName` | 予定表テンプレート |
-| `Requirements` | `Mailbox` 1.3 以上（`body.prependAsync` に 1.3 が必要。`sensitivity` の 1.14 は実行時に確認する） |
+| `Requirements` | `Mailbox` 1.3 以上（`body.prependAsync` に 1.3 が必要。`sensitivity` の 1.14 と `categories` の 1.8 は実行時に確認する） |
 | `Permissions` | `ReadWriteItem` |
 | `ExtensionPoint` | `AppointmentOrganizerCommandSurface`（予定の作成フォーム／開催者モード） |
 | ボタン | ラベル「テンプレート」、アクション `ShowTaskpane`（`taskpane.html`） |
@@ -83,6 +83,7 @@ export interface EventTemplate {
   optionalAttendees: string[];
   durationMinutes: number | null; // integer 1-1440, null = keep end time
   sensitivity: "unchanged" | "normal" | "private"; // normal = 公開, private = 非公開
+  categories: string[];        // names from the master category list
 }
 ```
 
@@ -93,7 +94,7 @@ export interface EventTemplate {
 ```
 
 - `version` は将来スキーマを変えたときの移行に使う。読み込み時に未知の `version` だった場合や JSON が壊れていた場合は、空の一覧として扱い、警告を表示して保存を禁止する（データを上書きしないため）。
-- `sensitivity` のない保存データは `"unchanged"` として読み込む。追加のみの変更で既存データをそのまま読めるので、`version` は 1 のままとする。未知の値は壊れたデータとして扱う。
+- `sensitivity` のない保存データは `"unchanged"`、`categories` のない保存データは `[]` として読み込む。追加のみの変更で既存データをそのまま読めるので、`version` は 1 のままとする。未知の値や不正な型は壊れたデータとして扱う。
 - 一覧の表示順は保存されている配列の順とする（新規作成は末尾に追加）。
 
 ## 5. モジュールと主要シグネチャ
@@ -104,13 +105,14 @@ export interface EventTemplate {
 export type ValidationError = { field: keyof EventTemplate; message: string };
 export function createEmptyTemplate(): EventTemplate;
 export function validateTemplate(t: EventTemplate, others: EventTemplate[]): ValidationError[];
+export function parseCategoryList(input: string): string[]; // split by , ; newline, trim, drop empty, case-insensitive dedup
 ```
 
 検証ルール:
 - `name`: 必須、50 文字以内、他のテンプレートと重複しない（大文字・小文字は区別しない）。
 - `requiredAttendees` / `optionalAttendees`: 全件が `isValidEmail` を満たす。
 - `durationMinutes`: `null` または 1〜1440 の整数。
-- 名前以外の項目がすべて空（件名・本文・場所は空白のみも空とみなす）で、公開範囲が `"unchanged"` の場合は、`subject` のエラーとして「件名・本文・場所・出席者・会議時間・公開範囲のいずれかを設定してください」を返す。
+- 名前以外の項目がすべて空（件名・本文・場所は空白のみも空とみなす）で、公開範囲が `"unchanged"`、カテゴリが空の場合は、`subject` のエラーとして「件名・本文・場所・出席者・会議時間・公開範囲・カテゴリのいずれかを設定してください」を返す。
 
 ### core/attendees.ts
 
@@ -159,6 +161,8 @@ export interface AppointmentGateway {
   prependBodyHtml(html: string): Promise<void>;
   setLocation(s: string): Promise<void>;
   setSensitivity(s: "normal" | "private"): Promise<void>;
+  getCategories(): Promise<string[]>;
+  addCategories(names: string[]): Promise<void>;
   getRequiredAttendees(): Promise<string[]>;
   addRequiredAttendees(emails: string[]): Promise<void>;
   getOptionalAttendees(): Promise<string[]>;
@@ -171,6 +175,8 @@ export function createOfficeAppointmentGateway(): AppointmentGateway;
 - `*Async` のコールバックを Promise に包む共通ヘルパー `promisify` を持つ。`asyncResult.status === Failed` のときは `asyncResult.error.message` を持つ `Error` で reject する。
 - 本文は `body.prependAsync(html, { coercionType: Office.CoercionType.Html })` で既存の本文の先頭に挿入する。
 - 公開範囲は `item.sensitivity.setAsync` で設定する。Mailbox 1.14 が必要なので、`isSetSupported("Mailbox", "1.14")` が偽のときは `Error` で失敗させる。マニフェストの最小要件は上げず、公開範囲を指定しないテンプレートは古い環境でも使えるようにする。
+- カテゴリは `item.categories` の `getAsync` と `addAsync` で扱う。Mailbox 1.8 が必要なので、`isSetSupported("Mailbox", "1.8")` が偽のときは `Error` で失敗させる。`getAsync` は未設定のとき `null` か空の配列を返すので、どちらも空の一覧にする。`mailbox.masterCategories` は `ReadWriteMailbox` 権限が必要なので使わない。
+- 公式ドキュメントには、Outlook on the web と新しい Outlook では作成モードの予定のカテゴリを API で管理できないという記載がある。Outlook on the web と新しい Outlook では追加と保存後の保持を実機で確認したが、将来動かなくなる可能性があるので、失敗は他の項目と同じく適用時のエラーとして扱う。
 - 日時の表示用の変換は `Office.context.mailbox.convertToLocalClientTime` を使い、メールボックスのタイムゾーンに合わせる（ブラウザーのタイムゾーンではない）。
 
 ### office/settings.ts
@@ -197,10 +203,11 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 3. `toLocal(start)` と `toLocal(end)` からプレースホルダーの値を作る（`end` は手順 2 の結果）。
 4. 件名・本文・場所のうち、空でない項目だけを設定する。件名と本文はプレースホルダーを展開し、本文は `plainTextToHtml` で HTML にしてから、既存の本文と分けるために末尾に `<br>` を付けて `prependBodyHtml()` で挿入する。
 5. `sensitivity` が `"unchanged"` でなければ、`setSensitivity()` を呼ぶ。
-6. 必須・任意出席者は、既存の出席者を取得し、`mergeAttendees` で重複を除いてから追加する。任意出席者は、必須出席者の追加後に既存の任意・必須の両方と比較する。追加するものがなければ API を呼ばない。
+6. カテゴリがあれば、既存のカテゴリを取得し、`mergeAttendees` で重複を除いてから追加する。追加するものがなければ API を呼ばない。
+7. 必須・任意出席者は、既存の出席者を取得し、`mergeAttendees` で重複を除いてから追加する。任意出席者は、必須出席者の追加後に既存の任意・必須の両方と比較する。追加するものがなければ API を呼ばない。
 
-- 手順 2〜6 は項目ごとに `try/catch` し、失敗しても次の項目に進む。失敗は `failures` に集めて返し、ロールバックはしない（要求仕様どおり）。
-- 項目名の表示: `終了日時`、`件名`、`本文`、`場所`、`公開範囲`、`必須出席者`、`任意出席者`。
+- 手順 2〜7 は項目ごとに `try/catch` し、失敗しても次の項目に進む。失敗は `failures` に集めて返し、ロールバックはしない（要求仕様どおり）。
+- 項目名の表示: `終了日時`、`件名`、`本文`、`場所`、`公開範囲`、`カテゴリ`、`必須出席者`、`任意出席者`。
 
 ### taskpane/
 
@@ -213,7 +220,7 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 |---|---|---|
 | 一覧（`listView`） | テンプレート名の一覧（ラジオボタン）。0 件のときは案内と［新規作成］ | ［適用］、［テンプレート管理］ |
 | 管理（`manageView`） | テンプレート名の一覧と各行の［編集］［削除］ | ［新規作成］、［戻る］ |
-| 編集（`editView`） | 名前、件名、本文（textarea）、場所、必須出席者、任意出席者（textarea。カンマ・セミコロン・改行区切り）、会議時間（数値。空欄可）、公開範囲（ドロップダウン。変更しない・公開・非公開）。差し込みできるプレースホルダーの説明を表示 | ［保存］、［キャンセル］ |
+| 編集（`editView`） | 名前、件名、本文（textarea）、場所、必須出席者、任意出席者（textarea。カンマ・セミコロン・改行区切り）、会議時間（数値。空欄可）、公開範囲（ドロップダウン。変更しない・公開・非公開）、カテゴリ（textarea。カンマ・セミコロン・改行区切り）。差し込みできるプレースホルダーの説明を表示 | ［保存］、［キャンセル］ |
 
 - 削除の確認は、画面内のインラインの確認表示（［削除する］［やめる］）で行う。作業ウィンドウでは `window.confirm` が使えないため。
 - メッセージは画面上部のメッセージバーに表示する（成功・エラー・警告の 3 種類）。
@@ -227,7 +234,7 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
 | 容量オーバー（保存時の形式で 30,000 バイト超） | `taskpane.ts` の保存処理（`exceedsLimit` で確認） | エラー「保存容量の上限を超えます。本文を短くするか、不要なテンプレートを削除してください」 |
 | `saveAsync` の失敗 | `settings.save` | エラー「保存に失敗しました: {message}」。画面の一覧は保存前のまま（保存は毎回一覧全体を書き込むので、`roamingSettings` を元に戻す処理は不要） |
 | 開始・終了日時を取得できない | `applyTemplate` 手順 1 | エラー「イベントの日時を取得できませんでした: {message}」 |
-| 項目ごとの設定失敗 | `applyTemplate` 手順 2〜6 | エラー「次の項目を設定できませんでした: 件名（{message}）、…」 |
+| 項目ごとの設定失敗 | `applyTemplate` 手順 2〜7 | エラー「次の項目を設定できませんでした: 件名（{message}）、…」 |
 | 全項目を設定できた | | 成功「テンプレート『{name}』を適用しました。内容を確認して、送信または保存してください」 |
 
 容量の確認は、`serialize` の結果を文字列としてもう一度 JSON エンコードしたサイズで行う（`roamingSettings` が保存時に文字列値を再度シリアライズするため）。以前の判定で保存したデータは 30,000 バイトを超えていることがあるので、現在より小さくなる保存は許可し、削除や本文の短縮で減らせるようにする。Office.js の実際の判定方法は未確認なので、それでも上限を超えた場合は `saveAsync` の失敗として扱う。
@@ -257,8 +264,8 @@ GitHub Pages への公開は `.github/workflows/deploy-pages.yml` で行う。`m
 |---|---|
 | `placeholder` | 日付形式・曜日（月末・年末・閏日 2028/02/29）、時刻の 0 埋め、複数回の出現、未定義のプレースホルダーを残す、HTML エスケープと改行の変換、終日イベントの判定 |
 | `attendees` | 区切り文字の混在、前後の空白、空要素、大文字・小文字を区別しない重複除去、不正なアドレス |
-| `template` | 名前の必須・長さ（50 / 51 文字）・重複（編集中の自分自身は除く）、会議時間の境界値（0 / 1 / 1440 / 1441 / 小数 / null）、名前以外がすべて空のテンプレート |
-| `storage` | 往復変換、壊れた JSON、未知の version、`undefined`（未保存）、日本語を含む場合のバイト数、再エンコード後のサイズ、上限の境界値、上限超過時にサイズが減る保存を許可する、`sensitivity` のない保存データ、未知の `sensitivity` |
-| `applyTemplate` | モックのゲートウェイで、①全項目の適用、②空の項目を設定しない、③会議時間が null なら終了日時を変えない、④`{終了時刻}` に適用後の終了時刻を使う、⑤重複する出席者を追加しない、⑥途中の失敗を集めて残りの項目を処理する、⑦日時を取得できないときに中断する、⑧本文を HTML 化し末尾に `<br>` を付けて `prependBodyHtml` で挿入する、⑨終日イベントの終了日時を変えない、⑩再適用で前回の出席者を残す、⑪必須出席者を任意出席者に追加しない、⑫指定があるときだけ公開範囲を設定する、⑬公開範囲の失敗を集めて残りの項目を処理する |
+| `template` | 名前の必須・長さ（50 / 51 文字）・重複（編集中の自分自身は除く）、会議時間の境界値（0 / 1 / 1440 / 1441 / 小数 / null）、名前以外がすべて空のテンプレート、カテゴリの区切り文字・前後の空白・重複除去 |
+| `storage` | 往復変換、壊れた JSON、未知の version、`undefined`（未保存）、日本語を含む場合のバイト数、再エンコード後のサイズ、上限の境界値、上限超過時にサイズが減る保存を許可する、`sensitivity` と `categories` のない保存データ、未知の `sensitivity`、不正な `categories` |
+| `applyTemplate` | モックのゲートウェイで、①全項目の適用、②空の項目を設定しない、③会議時間が null なら終了日時を変えない、④`{終了時刻}` に適用後の終了時刻を使う、⑤重複する出席者を追加しない、⑥途中の失敗を集めて残りの項目を処理する、⑦日時を取得できないときに中断する、⑧本文を HTML 化し末尾に `<br>` を付けて `prependBodyHtml` で挿入する、⑨終日イベントの終了日時を変えない、⑩再適用で前回の出席者を残す、⑪必須出席者を任意出席者に追加しない、⑫指定があるときだけ公開範囲を設定する、⑬公開範囲の失敗を集めて残りの項目を処理する、⑭既存のカテゴリに重複なく追加する、⑮カテゴリが空なら API を呼ばない、⑯カテゴリの失敗を集めて残りの項目を処理する |
 
 画面（`taskpane/`）と `office/` のアダプターは自動テストの対象外とし、実際の新しい Outlook での手動確認で担保する。

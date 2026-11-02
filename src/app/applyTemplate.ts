@@ -65,6 +65,12 @@ export async function applyTemplate(t: EventTemplate, appt: AppointmentGateway):
   if (sensitivity !== "unchanged") {
     await attempt("公開範囲", () => appt.setSensitivity(sensitivity));
   }
+  if (t.categories.length > 0) {
+    await attempt("カテゴリ", async () => {
+      const toAdd = mergeAttendees(await appt.getCategories(), t.categories);
+      if (toAdd.length > 0) await appt.addCategories(toAdd);
+    });
+  }
   if (t.requiredAttendees.length > 0) {
     await attempt("必須出席者", async () => {
       const toAdd = mergeAttendees(await appt.getRequiredAttendees(), t.requiredAttendees);

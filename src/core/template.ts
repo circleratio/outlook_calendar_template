@@ -14,6 +14,8 @@ export interface EventTemplate {
   /** Meeting length in minutes; null keeps the end time of the form. */
   durationMinutes: number | null;
   sensitivity: TemplateSensitivity;
+  /** Names from the master category list of the mailbox. */
+  categories: string[];
 }
 
 export type ValidationError = { field: keyof EventTemplate; message: string };
@@ -32,7 +34,22 @@ export function createEmptyTemplate(): EventTemplate {
     optionalAttendees: [],
     durationMinutes: null,
     sensitivity: "unchanged",
+    categories: [],
   };
+}
+
+/** Split user input by comma, semicolon or newline into trimmed, unique names (case-insensitive). */
+export function parseCategoryList(input: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const name of input.split(/[,;\r\n]+/).map((s) => s.trim())) {
+    const key = name.toLowerCase();
+    if (name.length > 0 && !seen.has(key)) {
+      seen.add(key);
+      result.push(name);
+    }
+  }
+  return result;
 }
 
 /** Validate `t` against the rules in spec.md; `others` may include `t` itself (matched by id). */
@@ -53,9 +70,13 @@ export function validateTemplate(t: EventTemplate, others: EventTemplate[]): Val
     t.requiredAttendees.length > 0 ||
     t.optionalAttendees.length > 0 ||
     t.durationMinutes !== null ||
-    t.sensitivity !== "unchanged";
+    t.sensitivity !== "unchanged" ||
+    t.categories.length > 0;
   if (!hasContent) {
-    errors.push({ field: "subject", message: "件名・本文・場所・出席者・会議時間・公開範囲のいずれかを設定してください" });
+    errors.push({
+      field: "subject",
+      message: "件名・本文・場所・出席者・会議時間・公開範囲・カテゴリのいずれかを設定してください",
+    });
   }
 
   for (const field of ["requiredAttendees", "optionalAttendees"] as const) {

@@ -1,4 +1,4 @@
-import { createEmptyTemplate, EventTemplate, validateTemplate } from "../../src/core/template";
+import { createEmptyTemplate, EventTemplate, parseCategoryList, validateTemplate } from "../../src/core/template";
 
 const make = (overrides: Partial<EventTemplate> = {}): EventTemplate => ({
   ...createEmptyTemplate(),
@@ -12,6 +12,21 @@ const fields = (t: EventTemplate, others: EventTemplate[] = []) => validateTempl
 describe("createEmptyTemplate", () => {
   it("creates distinct ids", () => {
     expect(createEmptyTemplate().id).not.toBe(createEmptyTemplate().id);
+  });
+});
+
+describe("parseCategoryList", () => {
+  it("splits, trims and drops empty entries", () => {
+    expect(parseCategoryList(" 団体, 社外;定例\r\n\n 重要 ")).toEqual(["団体", "社外", "定例", "重要"]);
+    expect(parseCategoryList("")).toEqual([]);
+  });
+
+  it("removes duplicates case-insensitively", () => {
+    expect(parseCategoryList("Team\nteam\n団体,団体")).toEqual(["Team", "団体"]);
+  });
+
+  it("keeps spaces inside a name", () => {
+    expect(parseCategoryList("赤の 分類")).toEqual(["赤の 分類"]);
   });
 });
 
@@ -51,6 +66,7 @@ describe("validateTemplate", () => {
       optionalAttendees: [],
       durationMinutes: null,
       sensitivity: "unchanged" as const,
+      categories: [],
     };
 
     it("requires at least one field besides the name", () => {
@@ -67,6 +83,7 @@ describe("validateTemplate", () => {
       ["durationMinutes", { durationMinutes: 60 }],
       ["sensitivity normal", { sensitivity: "normal" }],
       ["sensitivity private", { sensitivity: "private" }],
+      ["categories", { categories: ["団体"] }],
     ])("accepts only %s", (_name, overrides) => {
       expect(fields(make({ ...blank, ...overrides }))).toEqual([]);
     });

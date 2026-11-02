@@ -8,6 +8,8 @@ export interface AppointmentGateway {
   prependBodyHtml(html: string): Promise<void>;
   setLocation(s: string): Promise<void>;
   setSensitivity(s: "normal" | "private"): Promise<void>;
+  getCategories(): Promise<string[]>;
+  addCategories(names: string[]): Promise<void>;
   getRequiredAttendees(): Promise<string[]>;
   addRequiredAttendees(emails: string[]): Promise<void>;
   getOptionalAttendees(): Promise<string[]>;
@@ -38,6 +40,13 @@ export function createOfficeAppointmentGateway(): AppointmentGateway {
     return list.map((r) => r.emailAddress);
   };
 
+  // Checked at runtime so the manifest can keep its lower minimum requirement set.
+  const requireCategories = (): void => {
+    if (!Office.context.requirements.isSetSupported("Mailbox", "1.8")) {
+      throw new Error("このバージョンの Outlook では設定できません");
+    }
+  };
+
   return {
     getStart: () => promisify<Date>((cb) => item.start.getAsync(cb)),
     getEnd: () => promisify<Date>((cb) => item.end.getAsync(cb)),
@@ -56,6 +65,16 @@ export function createOfficeAppointmentGateway(): AppointmentGateway {
           ? Office.MailboxEnums.AppointmentSensitivityType.Private
           : Office.MailboxEnums.AppointmentSensitivityType.Normal;
       await promisify<void>((cb) => item.sensitivity.setAsync(value, cb));
+    },
+    getCategories: async () => {
+      requireCategories();
+      const list = await promisify<Office.CategoryDetails[] | null>((cb) => item.categories.getAsync(cb));
+      // Empty categories are returned as null or [] depending on the Outlook version.
+      return (list ?? []).map((c) => c.displayName);
+    },
+    addCategories: async (names) => {
+      requireCategories();
+      await promisify<void>((cb) => item.categories.addAsync(names, cb));
     },
     getRequiredAttendees: () => getEmails(item.requiredAttendees),
     addRequiredAttendees: (emails) => promisify<void>((cb) => item.requiredAttendees.addAsync(emails, cb)),

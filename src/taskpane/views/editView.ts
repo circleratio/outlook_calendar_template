@@ -3,6 +3,7 @@ import {
   createEmptyTemplate,
   EventTemplate,
   MAX_NAME_LENGTH,
+  parseCategoryList,
   TemplateSensitivity,
   validateTemplate,
 } from "../../core/template";
@@ -41,8 +42,10 @@ export function renderEditView(
       h("option", { value: "normal" }, "公開"),
       h("option", { value: "private" }, "非公開"),
     ),
+    categories: h("textarea", { id: "f-categories", rows: "2" }),
   };
   inputs.sensitivity.value = base.sensitivity;
+  inputs.categories.value = base.categories.join("\n");
   inputs.body.value = base.body;
   inputs.requiredAttendees.value = base.requiredAttendees.join("\n");
   inputs.optionalAttendees.value = base.optionalAttendees.join("\n");
@@ -73,6 +76,7 @@ export function renderEditView(
       // Number("") is 0, so treat blank explicitly as "not set".
       durationMinutes: duration === "" ? null : Number(duration),
       sensitivity: inputs.sensitivity.value as TemplateSensitivity,
+      categories: parseCategoryList(inputs.categories.value),
     };
   };
 
@@ -116,6 +120,12 @@ export function renderEditView(
     field("optionalAttendees", "任意出席者", inputs.optionalAttendees, "メールアドレスをカンマ・セミコロン・改行で区切って入力"),
     field("durationMinutes", "会議時間（分）", inputs.durationMinutes, "空欄の場合は終了日時を変更しません"),
     field("sensitivity", "公開範囲", inputs.sensitivity, "非公開にすると、他の人の予定表には件名や場所などの詳細が表示されません"),
+    field(
+      "categories",
+      "カテゴリ",
+      inputs.categories,
+      "Outlook のカテゴリ一覧にある名前を正確に入力。カンマ・セミコロン・改行で区切って複数指定できます",
+    ),
     h(
       "div",
       { class: "actions" },

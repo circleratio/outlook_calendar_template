@@ -12,6 +12,7 @@ class FakeAppointment implements AppointmentGateway {
   body = "";
   location = "";
   sensitivity = "normal";
+  categories: string[] = [];
   required: string[] = [];
   optional: string[] = [];
   failOn = new Set<string>();
@@ -49,6 +50,14 @@ class FakeAppointment implements AppointmentGateway {
   async setSensitivity(s: "normal" | "private") {
     this.guard("setSensitivity");
     this.sensitivity = s;
+  }
+  async getCategories() {
+    this.guard("getCategories");
+    return [...this.categories];
+  }
+  async addCategories(names: string[]) {
+    this.guard("addCategories");
+    this.categories.push(...names);
   }
   async getRequiredAttendees() {
     this.guard("getRequiredAttendees");
@@ -236,6 +245,34 @@ describe("applyTemplate", () => {
     const result = await applyTemplate(template({ sensitivity: "private" }), appt);
 
     expect(result.failures).toEqual([{ field: "公開範囲", message: "setSensitivity failed" }]);
+    expect(appt.required).toEqual(["a@example.com"]);
+  });
+
+  it("(14) adds categories to the existing ones without duplicates", async () => {
+    const appt = new FakeAppointment();
+    appt.categories = ["既存", "団体"];
+    await applyTemplate(template({ categories: ["団体", "新規"] }), appt);
+    expect(appt.categories).toEqual(["既存", "団体", "新規"]);
+
+    const unchanged = new FakeAppointment();
+    unchanged.categories = ["Team"];
+    await applyTemplate(template({ categories: ["team"] }), unchanged);
+    expect(unchanged.calls).not.toContain("addCategories");
+  });
+
+  it("(15) does not touch categories when the template has none", async () => {
+    const appt = new FakeAppointment();
+    await applyTemplate(template({ categories: [] }), appt);
+    expect(appt.calls).not.toContain("getCategories");
+    expect(appt.calls).not.toContain("addCategories");
+  });
+
+  it("(16) reports a category failure and applies the remaining fields", async () => {
+    const appt = new FakeAppointment();
+    appt.failOn = new Set(["addCategories"]);
+    const result = await applyTemplate(template({ categories: ["未登録"] }), appt);
+
+    expect(result.failures).toEqual([{ field: "カテゴリ", message: "addCategories failed" }]);
     expect(appt.required).toEqual(["a@example.com"]);
   });
 });

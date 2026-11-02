@@ -12,7 +12,10 @@ export function isValidEmail(s: string): boolean {
   return EMAIL_PATTERN.test(s);
 }
 
-/** Return the entries of `toAdd` not already present in `existing` (case-insensitive, also deduped within `toAdd`). */
+/**
+ * Return the entries of `toAdd` not already present in `existing` (case-insensitive, also deduped within `toAdd`).
+ * Also used for category names, which follow the same rule.
+ */
 export function mergeAttendees(existing: string[], toAdd: string[]): string[] {
   const seen = new Set(existing.map((e) => e.toLowerCase()));
   const result: string[] = [];

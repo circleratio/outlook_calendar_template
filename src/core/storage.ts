@@ -36,8 +36,9 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((s) => typeof s === "string");
 }
 
-/** Templates saved before `sensitivity` was added do not have the field. */
-type StoredTemplate = Omit<EventTemplate, "sensitivity"> & Partial<Pick<EventTemplate, "sensitivity">>;
+/** Templates saved before `sensitivity` and `categories` were added do not have those fields. */
+type StoredTemplate = Omit<EventTemplate, "sensitivity" | "categories"> &
+  Partial<Pick<EventTemplate, "sensitivity" | "categories">>;
 
 function isTemplate(v: unknown): v is StoredTemplate {
   if (typeof v !== "object" || v === null) return false;
@@ -51,7 +52,8 @@ function isTemplate(v: unknown): v is StoredTemplate {
     isStringArray(t.requiredAttendees) &&
     isStringArray(t.optionalAttendees) &&
     (t.durationMinutes === null || typeof t.durationMinutes === "number") &&
-    (t.sensitivity === undefined || t.sensitivity === "unchanged" || t.sensitivity === "normal" || t.sensitivity === "private")
+    (t.sensitivity === undefined || t.sensitivity === "unchanged" || t.sensitivity === "normal" || t.sensitivity === "private") &&
+    (t.categories === undefined || isStringArray(t.categories))
   );
 }
 
@@ -66,7 +68,9 @@ export function deserialize(raw: unknown): { templates: EventTemplate[]; warning
       return { templates: [], warning: LOAD_WARNING };
     }
     const templates: StoredTemplate[] = data.templates;
-    return { templates: templates.map((t) => ({ ...t, sensitivity: t.sensitivity ?? "unchanged" })) };
+    return {
+      templates: templates.map((t) => ({ ...t, sensitivity: t.sensitivity ?? "unchanged", categories: t.categories ?? [] })),
+    };
   } catch {
     return { templates: [], warning: LOAD_WARNING };
   }

@@ -21,10 +21,15 @@ describe("serialize / deserialize", () => {
     expect(deserialize(JSON.parse(serialize([sample])))).toEqual({ templates: [sample] });
   });
 
-  it("loads templates saved before sensitivity was added", () => {
-    const { sensitivity: _omitted, ...legacy } = sample;
+  it("loads templates saved before sensitivity and categories were added", () => {
+    const { sensitivity: _sensitivity, categories: _categories, ...legacy } = sample;
     const raw = JSON.stringify({ version: 1, templates: [legacy] });
-    expect(deserialize(raw)).toEqual({ templates: [{ ...legacy, sensitivity: "unchanged" }] });
+    expect(deserialize(raw)).toEqual({ templates: [{ ...legacy, sensitivity: "unchanged", categories: [] }] });
+  });
+
+  it("keeps stored categories", () => {
+    const stored = { ...sample, categories: ["団体"] };
+    expect(deserialize(serialize([stored]))).toEqual({ templates: [stored] });
   });
 
   it("keeps a stored sensitivity", () => {
@@ -44,6 +49,7 @@ describe("serialize / deserialize", () => {
     ["invalid template", JSON.stringify({ version: 1, templates: [{ id: "x" }] })],
     ["non-object", 42],
     ["unknown sensitivity", JSON.stringify({ version: 1, templates: [{ ...sample, sensitivity: "secret" }] })],
+    ["invalid categories", JSON.stringify({ version: 1, templates: [{ ...sample, categories: "団体" }] })],
   ])("warns on %s", (_label, raw) => {
     const result = deserialize(raw);
     expect(result.templates).toEqual([]);
